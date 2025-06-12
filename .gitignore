@@ -1,0 +1,69 @@
+# macOS
+.DS_Store
+*.swp
+*~.nib
+
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+*.playground
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+.netrc
+/Packages
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Environment
+.env
+.env.local
+
+# Test Coverage
+*.xcresult
+*.lcov
+coverage/
+
+# Documentation build artifacts
+docs/
+.build/docs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Dependencies
+Carthage/
+Pods/
+
+# Other
+*.log
+tmp/
+temp/
+
+# Config files with secrets
+config.json
+
+# Claude config
+.claude
+CLAUDE.md
