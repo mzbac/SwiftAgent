@@ -8,14 +8,13 @@ A powerful Swift library for building AI agents that integrate with Model Contex
 
 ## Features
 
-- 🏠 **On-Device Inference**: Run Qwen3 models locally with MLX (Apple Silicon) 
+- 🏠 **On-Device Inference**: Run Qwen3 models locally with MLX (Apple Silicon)
+- ⚡ **Advanced Prompt Caching**: KV cache management for faster multi-turn conversations
 - 🚀 **MLX Server Support**: Connect to mlx_lm.server for OpenAI-compatible API
 - 🔧 **MCP Integration**: Connect to Model Context Protocol servers for tool access
-- 🤖 **Tool Calling**: Native support for Qwen3 tool calling capabilities
-- 🔄 **Streaming Responses**: Real-time streaming of LLM responses
+- 🤖 **Tool Calling**: Native support for Qwen3 tool calling
 - 📱 **Cross-Platform**: Supports iOS 16+, macOS 14+ (Apple Silicon)
-- 🛡️ **Type-Safe**: Leverages Swift's type system for safe API usage
-- ⚡ **Async/Await**: Built with modern Swift concurrency
+- ⚡ **Async/Await**: Built with modern Swift concurrency and actors
 
 ## Installation
 
@@ -25,7 +24,7 @@ Add SwiftAgent to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/SwiftAgent.git", branch: "main")
+    .package(url: "https://github.com/mzbac/SwiftAgent.git", branch: "main")
 ]
 ```
 
@@ -33,6 +32,18 @@ Or add it in Xcode:
 1. File → Add Package Dependencies
 2. Enter the repository URL
 3. Select version and add to your project
+
+## Architecture Overview
+
+SwiftAgent provides a flexible, modular architecture for building AI agents:
+
+- **Agent**: Main orchestrator managing conversations, tool execution, and state
+- **LLM Providers**: Pluggable backends for different model inference approaches
+  - `MLXProvider`: Local on-device inference with advanced caching
+  - `OpenAICompatibleProvider`: API-based inference for mlx_lm.server
+- **MCP Integration**: Full support for Model Context Protocol tools
+- **Message System**: Type-safe message handling with role-based routing
+- **Error Handling**: Comprehensive error types for robust applications
 
 ## Quick Start
 
@@ -58,14 +69,19 @@ let agent = Agent(
 // Connect to MCP servers (optional)
 try await agent.connect(servers: [
     MCPServerConfig.http(
-        name: "example",
-        url: URL(string: "https://example.com/mcp")!
+        name: "filesystem",
+        url: URL(string: "http://localhost:3000/mcp")!
     )
 ])
 
 // Run the agent
-try await agent.run("Hello! What tools do you have available?") { message in
+try await agent.run("What files are in the current directory?") { message in
     print("\(message.role): \(message.content)")
+}
+
+// Cleanup
+defer { 
+    Task { await agent.disconnect() }
 }
 ```
 
@@ -73,20 +89,44 @@ try await agent.run("Hello! What tools do you have available?") { message in
 
 ### MLX On-Device Models (Apple Silicon)
 
-Currently only supports Qwen3 models for tool calling:
+Currently supports Qwen3 models for tool calling. You can use either HuggingFace models directly or mlx-community quantized versions:
 
 ```swift
-// Download and run Qwen3 models locally
+// Direct HuggingFace models (automatically quantized)
+let provider = try await MLXProvider(
+    modelId: "Qwen/Qwen3-4B-Instruct"
+)
+
+// Pre-quantized mlx-community models
 let provider = try await MLXProvider(
     modelId: "mlx-community/Qwen3-4B-Instruct-4bit"
 )
 
 // Supported Qwen3 models:
-// - mlx-community/Qwen3-0.6B-4bit
-// - mlx-community/Qwen3-1.7B-4bit  
+// HuggingFace:
+// - Qwen/Qwen3-0.5B-Instruct
+// - Qwen/Qwen3-1.5B-Instruct
+// - Qwen/Qwen3-4B-Instruct
+// - Qwen/Qwen3-8B-Instruct
+// - Qwen/Qwen3-14B-Instruct
+// - Qwen/Qwen3-32B-Instruct
+//
+// mlx-community (pre-quantized):
+// - mlx-community/Qwen3-0.5B-Instruct-4bit
+// - mlx-community/Qwen3-1.5B-Instruct-4bit  
 // - mlx-community/Qwen3-4B-Instruct-4bit
 // - mlx-community/Qwen3-8B-Instruct-4bit
+// - mlx-community/Qwen3-14B-Instruct-4bit
+// - mlx-community/Qwen3-32B-Instruct-4bit
 ```
+
+#### MLX Provider Features
+
+- **Prompt Caching**: Sophisticated KV cache management for fast multi-turn conversations
+- **Cache Statistics**: Track cache hits, size, and performance metrics
+- **Streaming Metrics**: Real-time token/s and generation statistics
+- **Memory Efficient**: Automatic cache cleanup and size management
+- **Tool Support**: XML-style tool calling format for Qwen3 models
 
 ### MLX Server (OpenAI-Compatible API)
 
@@ -124,15 +164,75 @@ try await agent.connect(servers: [httpServer])
 // The agent will automatically discover and use available tools
 ```
 
+## Advanced Features
+
+### Prompt Caching (MLX Provider)
+
+The MLX provider includes advanced prompt caching that dramatically improves performance in multi-turn conversations:
+
+```swift
+// Enable caching (default behavior)
+let provider = try await MLXProvider(
+    modelId: "Qwen/Qwen3-4B-Instruct",
+    enableCaching: true  // Default
+)
+
+// Cache statistics are logged automatically:
+// [MLXProvider] Cache stats - Hit rate: 85.7%, Size: 1.2GB, Saved tokens: 15420
+```
+
+Caching provides:
+- Speedup for repeated context
+- Automatic cache invalidation on context changes
+- Memory-efficient storage with size limits
+- Per-conversation isolation
+
+### Tool Calling
+
+Qwen3 models support tool calling through XML-style formatting:
+
+```swift
+// Tools are automatically discovered from MCP servers
+// The agent handles tool call formatting and execution
+try await agent.run("Search for information about Swift concurrency") { message in
+    switch message.role {
+    case .tool:
+        print("Tool executed: \(message.content)")
+    case .assistant:
+        print("Assistant: \(message.content)")
+    default:
+        break
+    }
+}
+```
+
+### Error Handling
+
+SwiftAgent provides comprehensive error handling:
+
+```swift
+do {
+    try await agent.run("Your prompt") { message in
+        // Handle messages
+    }
+} catch AgentError.maxTurnsExceeded {
+    print("Conversation too long")
+} catch AgentError.toolExecutionFailed(let toolName, let error) {
+    print("Tool \(toolName) failed: \(error)")
+} catch AgentError.cancelled {
+    print("Operation cancelled")
+}
+```
+
 ## Configuration
 
 ### Agent Configuration
 
 ```swift
 let config = AgentConfiguration(
-    model: "mlx-community/Qwen3-4B-Instruct-4bit",    // Model identifier
-    provider: "mlx",                                   // "mlx" or "mlx-server"
-    systemPrompt: "...",                               // System instructions
+    model: "Qwen/Qwen3-4B-Instruct",                 // Model identifier
+    provider: "mlx",                                  // "mlx" or "mlx-server"
+    systemPrompt: "...",                              // System instructions
     maxTurns: 10,                                     // Max conversation turns
     temperature: 0.7,                                 // Sampling temperature (0.0-1.0)
     maxTokens: 2000,                                  // Max tokens per response
@@ -159,76 +259,200 @@ LoggingSystem.bootstrap { label in
 
 ## Examples
 
-### Deep Wikipedia Search with Qwen
+### File System Agent with Tool Usage
 
-This example shows how to use Qwen3 with MCP tools for deep research:
+This example shows practical tool usage with file system operations:
 
 ```swift
 import SwiftAgent
 
-// Create Qwen3 provider for advanced reasoning
+// Create provider with caching for fast interactions
 let provider = try await MLXProvider(
-    modelId: "mlx-community/Qwen3-8B-Instruct-4bit"
+    modelId: "mlx-community/Qwen3-4B-Instruct-4bit"
 )
 
-// Configure agent with research-focused prompt
+// Create agent with file system access
+let agent = Agent(
+    configuration: AgentConfiguration(
+        model: "mlx-community/Qwen3-4B-Instruct-4bit",
+        provider: "mlx",
+        systemPrompt: "You are a helpful file system assistant.",
+        maxTurns: 10
+    ),
+    llmProvider: provider
+)
+
+// Connect to filesystem MCP server
+try await agent.connect(servers: [
+    MCPServerConfig.stdio(
+        name: "filesystem",
+        command: "/usr/local/bin/mcp-server-filesystem",
+        args: ["-r", NSHomeDirectory()]
+    )
+])
+
+// Use the agent for file operations
+try await agent.run("""
+    Please help me organize my Downloads folder:
+    1. List all PDF files
+    2. Create a 'PDFs' subfolder if it doesn't exist
+    3. Move all PDFs to the new folder
+    4. Give me a summary of what was moved
+""") { message in
+    if message.role == .tool {
+        print("🔧 Tool: \(message.content)")
+    } else if message.role == .assistant {
+        print("\n💬 Assistant: \(message.content)")
+    }
+}
+```
+
+### Research Agent with Web Tools
+
+```swift
+import SwiftAgent
+
+// Use a larger model for complex research
+let provider = try await MLXProvider(
+    modelId: "mlx-community/Qwen3-4B-Instruct-4bit"
+)
+
+// Configure for research tasks
 let config = AgentConfiguration(
-    model: "mlx-community/Qwen3-8B-Instruct-4bit",
+    model: "mlx-community/Qwen3-4B-Instruct-4bit",
     provider: "mlx",
     systemPrompt: """
-    You are a research assistant with access to web browsing capabilities.
-    When asked about a topic, you should:
-    1. Search for comprehensive information
-    2. Read multiple sources to get a complete picture
-    3. Synthesize the information into a well-structured response
-    4. Cite your sources when possible
-    Think step by step and be thorough in your research.
+    You are a thorough research assistant. When researching:
+    1. Search for authoritative sources
+    2. Verify facts from multiple sources
+    3. Provide citations
+    4. Structure information clearly
     """,
-    maxTurns: 10,
+    maxTurns: 15,  // More turns for deep research
     temperature: 0.7,
-    topP: 0.95,
-    repetitionPenalty: 1.15
+    topP: 0.95
 )
 
 let agent = Agent(configuration: config, llmProvider: provider)
 
-// Connect to MCP server with web browsing tools
+// Connect to web search and browser tools
 try await agent.connect(servers: [
     MCPServerConfig.http(
-        name: "web-browser",
-        url: URL(string: "http://localhost:3000/mcp")!,
+        name: "web-search",
+        url: URL(string: "http://localhost:3001/mcp")!,
+        streaming: false
+    ),
+    MCPServerConfig.http(
+        name: "browser",
+        url: URL(string: "http://localhost:3002/mcp")!,
         streaming: false
     )
 ])
 
-// Perform deep research
+// Conduct research
 try await agent.run("""
-    Research the history and impact of the Transformer architecture in AI.
-    I want to understand:
-    - Who invented it and when
-    - Key innovations it introduced  
-    - How it revolutionized NLP and AI
-    - Major models built on this architecture
-    Please provide a comprehensive overview.
+    Research the current state of quantum computing in 2024.
+    Focus on recent breakthroughs and commercial applications.
 """) { message in
-    print("\n[\(message.role.rawValue.uppercased())]")
     print(message.content)
 }
 ```
 
-### Configuring Generation Parameters
+### Code Assistant with Git Integration
 
 ```swift
-// Fine-tune generation for different use cases
-let config = AgentConfiguration(
-    model: "mlx-community/Qwen3-4B-Instruct-4bit",
+import SwiftAgent
+
+// Setup code assistant
+let provider = try await MLXProvider(
+    modelId: "Qwen/Qwen3-4B-Instruct"
+)
+
+let agent = Agent(
+    configuration: AgentConfiguration(
+        model: "Qwen/Qwen3-4B-Instruct",
+        provider: "mlx",
+        systemPrompt: "You are an expert Swift developer.",
+        maxTurns: 20
+    ),
+    llmProvider: provider
+)
+
+// Connect to filesystem and git servers
+try await agent.connect(servers: [
+    MCPServerConfig.filesystem(),  // Pre-configured filesystem access
+    MCPServerConfig.git()          // Pre-configured git operations
+])
+
+// Use for code tasks
+try await agent.run("""
+    Review the recent commits in this repository and:
+    1. Summarize the main changes
+    2. Identify any potential issues
+    3. Suggest improvements to the code structure
+""") { message in
+    print(message.content)
+}
+```
+
+### Performance Optimization
+
+```swift
+// Optimize for different scenarios
+
+// Fast, focused responses
+let fastConfig = AgentConfiguration(
+    model: "mlx-community/Qwen3-0.6B-Instruct-4bit",  // Smaller model
+    provider: "mlx",
+    systemPrompt: "Be concise and direct.",
+    temperature: 0.3,       // Lower for consistency
+    maxTokens: 500,         // Limit response length
+    topP: 0.9
+)
+
+// Creative, detailed responses  
+let creativeConfig = AgentConfiguration(
+    model: "mlx-community/Qwen3-0.6B-Instruct-4bit",    // Larger model
     provider: "mlx",
     systemPrompt: "You are a creative writing assistant.",
     temperature: 0.9,        // Higher for creativity
-    topP: 0.95,             // Nucleus sampling
+    maxTokens: 2000,         // Allow longer responses
+    topP: 0.95,             // Wider sampling
     repetitionPenalty: 1.2,  // Reduce repetition
-    repetitionContextSize: 40 // Look back 40 tokens
+    repetitionContextSize: 40 // Larger context window
 )
+
+// Technical accuracy
+let technicalConfig = AgentConfiguration(
+    model: "Qwen/Qwen3-4B-Instruct",
+    provider: "mlx",
+    systemPrompt: "You are a technical expert. Be precise and accurate.",
+    temperature: 0.1,        // Very low for determinism
+    topP: 0.85,             // Narrower sampling
+    repetitionPenalty: 1.05  // Minimal penalty
+)
+```
+
+### Resource Management
+
+```swift
+// Use withAgent for automatic cleanup
+try await Agent.withAgent(
+    configuration: config,
+    llmProvider: provider,
+    servers: [MCPServerConfig.filesystem()]
+) { agent in
+    try await agent.run("Your task") { message in
+        print(message.content)
+    }
+    // Agent automatically disconnects when done
+}
+
+// Manual management
+let agent = Agent(configuration: config, llmProvider: provider)
+defer {
+    Task { await agent.disconnect() }
+}
 ```
 
 ## API Reference
