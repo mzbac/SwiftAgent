@@ -12,6 +12,7 @@ public struct AgentMessage: Sendable, Identifiable, Codable {
     public let id: UUID
     public let role: Role
     public let content: String
+    public let rawContent: String?
     public let toolCallId: String?
     public let toolName: String?
     public let timestamp: Date
@@ -20,6 +21,7 @@ public struct AgentMessage: Sendable, Identifiable, Codable {
         id: UUID = UUID(),
         role: Role,
         content: String,
+        rawContent: String? = nil,
         toolCallId: String? = nil,
         toolName: String? = nil,
         timestamp: Date = Date()
@@ -27,6 +29,7 @@ public struct AgentMessage: Sendable, Identifiable, Codable {
         self.id = id
         self.role = role
         self.content = content
+        self.rawContent = rawContent
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.timestamp = timestamp
@@ -36,6 +39,9 @@ public struct AgentMessage: Sendable, Identifiable, Codable {
 // MARK: - Extensions
 
 extension AgentMessage {
+    public var tokenizableContent: String {
+        rawContent ?? content
+    }
     /// Convert to OpenAI API format
     public func toOpenAIFormat() -> [String: Any] {
         var dict: [String: Any] = [

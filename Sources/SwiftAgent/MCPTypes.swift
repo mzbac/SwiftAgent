@@ -79,12 +79,19 @@ public struct ChatCompletionStreamOutputChoice: Codable, Sendable {
 public struct ChatCompletionStreamOutputDelta: Codable, Sendable {
     public let role: String?
     public let content: String?
-    public let tool_calls: [ChatCompletionStreamOutputDeltaToolCall]?
+    public let rawContent: String?
+    public let toolCalls: [ChatCompletionStreamOutputDeltaToolCall]?
     
-    public init(role: String? = nil, content: String? = nil, tool_calls: [ChatCompletionStreamOutputDeltaToolCall]? = nil) {
+    private enum CodingKeys: String, CodingKey {
+        case role, content, rawContent
+        case toolCalls = "tool_calls"
+    }
+    
+    public init(role: String? = nil, content: String? = nil, rawContent: String? = nil, toolCalls: [ChatCompletionStreamOutputDeltaToolCall]? = nil) {
         self.role = role
         self.content = content
-        self.tool_calls = tool_calls
+        self.rawContent = rawContent
+        self.toolCalls = toolCalls
     }
 }
 
@@ -114,6 +121,7 @@ public struct ChatCompletionStreamOutputDeltaToolCallFunction: Codable, Sendable
 
 extension Array where Element == Tool {
     public var asChatCompletionTools: [ChatCompletionInputTool] {
-        self.map { ChatCompletionInputTool.from(tool: $0) }
+        self.sorted { $0.name < $1.name }
+            .map { ChatCompletionInputTool.from(tool: $0) }
     }
 }

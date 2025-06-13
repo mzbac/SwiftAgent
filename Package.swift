@@ -1,5 +1,4 @@
 // swift-tools-version: 6.0
-// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
@@ -13,18 +12,13 @@ let package = Package(
         .library(
             name: "SwiftAgent",
             targets: ["SwiftAgent"]
-        ),
+        )
     ],
     dependencies: [
-        // Model Context Protocol SDK
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.9.0"),
-        // Swift logging API
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
-        // MLX Swift for core functionality
         .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.25.4"),
-        // MLX Swift Examples for LLM support
-        .package(url: "https://github.com/mzbac/mlx-swift-examples.git", revision: "a7031a6eaa8422c7b73829125799445f5ae565f5"),
-        // Transformers for tokenization
+        .package(url: "https://github.com/mzbac/mlx-swift-examples.git", revision: "9b5794e6ed994bf078f4793ad27c04d88355d8d9"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "0.1.21")
     ],
     targets: [

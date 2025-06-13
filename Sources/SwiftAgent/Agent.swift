@@ -148,6 +148,7 @@ public actor Agent {
         }
     }
     
+    
     private func connectToServer(_ config: MCPServerConfig) async throws {
         switch config.type {
         case .stdio:
@@ -199,6 +200,7 @@ public actor Agent {
             )
             
             var assistantContent = ""
+            var rawAssistantContent: String?
             var toolCalls: [ChatCompletionStreamOutputDeltaToolCall] = []
             
             do {
@@ -210,7 +212,11 @@ public actor Agent {
                             assistantContent += content
                         }
                         
-                        if let deltaToolCalls = delta.tool_calls {
+                        if let rawContent = delta.rawContent {
+                            rawAssistantContent = rawContent
+                        }
+                        
+                        if let deltaToolCalls = delta.toolCalls {
                             for toolCall in deltaToolCalls {
                                 if toolCall.index < toolCalls.count {
                                     var existing = toolCalls[toolCall.index]
@@ -231,7 +237,8 @@ public actor Agent {
             if !assistantContent.isEmpty {
                 let assistantMessage = AgentMessage(
                     role: .assistant,
-                    content: assistantContent
+                    content: assistantContent,
+                    rawContent: rawAssistantContent
                 )
                 messages.append(assistantMessage)
                 await onMessage(assistantMessage)
